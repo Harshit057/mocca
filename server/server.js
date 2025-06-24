@@ -22,7 +22,10 @@ mongoose.connect(process.env.MONGO_URI, {
 const app = express();
 const server = http.createServer(app);
 
-app.use(cors());
+app.use(cors({
+  origin: ["http://localhost:5173", "https://your-vercel-url.vercel.app"],
+  credentials: true
+}));
 app.use(express.json());
 
 // Auth API Routes

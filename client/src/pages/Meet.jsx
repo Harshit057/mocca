@@ -1,8 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import io from 'socket.io-client';
+import { io } from 'socket.io-client';
 
-const socket = io('http://localhost:5000');
+// ✅ Use dynamic API URL
+const socket = io(import.meta.env.VITE_API_URL, {
+  transports: ['websocket'],
+  secure: true
+});
 
 const Meet = () => {
   const localVideoRef = useRef();

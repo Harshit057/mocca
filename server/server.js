@@ -7,7 +7,7 @@ const { Server } = require("socket.io");
 
 dotenv.config();
 
-// MongoDB Connection
+// ✅ MongoDB Connection
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
@@ -22,26 +22,34 @@ mongoose.connect(process.env.MONGO_URI, {
 const app = express();
 const server = http.createServer(app);
 
+// ✅ Allow both local + deployed frontend
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://mocca-kappa.vercel.app", // your actual deployed frontend
+  "https://mocca-7dsv.vercel.app"  // if this is an alias
+];
+
 app.use(cors({
-  origin: ["http://localhost:5173", "https://your-vercel-url.vercel.app"],
-  credentials: true
+  origin: allowedOrigins,
+  credentials: true,
 }));
 app.use(express.json());
 
-// Auth API Routes
+// ✅ Auth API
 const authRoutes = require("./routes/auth");
 app.use("/api/auth", authRoutes);
 
-// Health check
+// ✅ Health check
 app.get("/", (req, res) => {
   res.send("Mocca Backend is Live!");
 });
 
-// Socket.IO Server
+// ✅ Setup Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
@@ -52,29 +60,25 @@ io.on("connection", (socket) => {
     socket.join(roomId);
     socket.to(roomId).emit("user-connected", userId);
 
-    // Handle offer
     socket.on("offer", ({ offer, roomId }) => {
       socket.to(roomId).emit("offer", offer);
     });
 
-    // Handle answer
     socket.on("answer", ({ answer, roomId }) => {
       socket.to(roomId).emit("answer", answer);
     });
 
-    // Handle ICE candidate
     socket.on("ice-candidate", ({ candidate, roomId }) => {
       socket.to(roomId).emit("ice-candidate", { candidate });
     });
 
-    // Handle disconnect
     socket.on("disconnect", () => {
       socket.to(roomId).emit("user-disconnected", userId);
     });
   });
 });
 
-// Start Server
+// ✅ Start the Server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);

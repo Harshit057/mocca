@@ -2,122 +2,171 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 
-// ✅ Use dynamic API URL
+// ✅ Connect to Backend Socket Server
 const socket = io(import.meta.env.VITE_API_URL, {
   transports: ['websocket'],
-  secure: true
+  secure: true,
 });
 
 const Meet = () => {
-  const localVideoRef = useRef();
-  const remoteVideoRef = useRef();
-  const peerConnection = useRef(null);
-  const localStream = useRef(null);
+  const { roomId = "mocca-room" } = useParams();
   const navigate = useNavigate();
 
-  const { roomId = "mocca-room" } = useParams();
+  const localVideoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
+  const peerConnection = useRef(null);
+  const localStream = useRef(null);
+
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
 
   useEffect(() => {
-    const initWebRTC = async () => {
-      localStream.current = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localVideoRef.current.srcObject = localStream.current;
+    const startCall = async () => {
+      try {
+        // 🎥 Get Local Media
+        localStream.current = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localVideoRef.current.srcObject = localStream.current;
 
-      peerConnection.current = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-      });
+        // 📞 Peer Connection
+        peerConnection.current = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+        });
 
-      localStream.current.getTracks().forEach(track => {
-        peerConnection.current.addTrack(track, localStream.current);
-      });
+        // Add Tracks to Peer
+        localStream.current.getTracks().forEach(track => {
+          peerConnection.current.addTrack(track, localStream.current);
+        });
 
-      peerConnection.current.ontrack = event => {
-        remoteVideoRef.current.srcObject = event.streams[0];
-      };
+        // On Remote Stream
+        peerConnection.current.ontrack = ({ streams }) => {
+          remoteVideoRef.current.srcObject = streams[0];
+        };
 
-      peerConnection.current.onicecandidate = event => {
-        if (event.candidate) {
-          socket.emit("ice-candidate", { roomId, candidate: event.candidate });
-        }
-      };
+        // On ICE Candidate
+        peerConnection.current.onicecandidate = ({ candidate }) => {
+          if (candidate) {
+            socket.emit('ice-candidate', { roomId, candidate });
+          }
+        };
 
-      socket.emit("join-room", { roomId });
+        // Join Room
+        socket.emit("join-room", { roomId });
 
-      socket.on("user-connected", async () => {
-        const offer = await peerConnection.current.createOffer();
-        await peerConnection.current.setLocalDescription(offer);
-        socket.emit("offer", { offer, roomId });
-      });
+        // When another user joins
+        socket.on("user-connected", async () => {
+          const offer = await peerConnection.current.createOffer();
+          await peerConnection.current.setLocalDescription(offer);
+          socket.emit("offer", { roomId, offer });
+        });
 
-      socket.on("offer", async offer => {
-        await peerConnection.current.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer = await peerConnection.current.createAnswer();
-        await peerConnection.current.setLocalDescription(answer);
-        socket.emit("answer", { answer, roomId });
-      });
+        // Receive Offer
+        socket.on("offer", async ({ offer }) => {
+          await peerConnection.current.setRemoteDescription(new RTCSessionDescription(offer));
+          const answer = await peerConnection.current.createAnswer();
+          await peerConnection.current.setLocalDescription(answer);
+          socket.emit("answer", { roomId, answer });
+        });
 
-      socket.on("answer", async answer => {
-        await peerConnection.current.setRemoteDescription(new RTCSessionDescription(answer));
-      });
+        // Receive Answer
+        socket.on("answer", async ({ answer }) => {
+          await peerConnection.current.setRemoteDescription(new RTCSessionDescription(answer));
+        });
 
-      socket.on("ice-candidate", async ({ candidate }) => {
-        try {
-          await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (err) {
-          console.error("Error adding ICE candidate", err);
-        }
-      });
+        // Receive ICE
+        socket.on("ice-candidate", async ({ candidate }) => {
+          try {
+            await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (err) {
+            console.error("Error adding ICE candidate:", err);
+          }
+        });
+
+      } catch (err) {
+        console.error("Failed to access camera or mic:", err);
+        alert("Please allow access to camera and microphone.");
+      }
     };
 
-    initWebRTC();
+    startCall();
 
+    // 🧹 Cleanup
     return () => {
       socket.disconnect();
       peerConnection.current?.close();
-      localStream.current?.getTracks().forEach(track => track.stop());
+      localStream.current?.getTracks()?.forEach(track => track.stop());
     };
   }, [roomId]);
 
+  // 🎤 Toggle Microphone
   const toggleMic = () => {
-    const audioTrack = localStream.current.getAudioTracks()[0];
-    audioTrack.enabled = !audioTrack.enabled;
-    setMicOn(audioTrack.enabled);
+    const audioTrack = localStream.current?.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !audioTrack.enabled;
+      setMicOn(audioTrack.enabled);
+    }
   };
 
+  // 📷 Toggle Camera
   const toggleCam = () => {
-    const videoTrack = localStream.current.getVideoTracks()[0];
-    videoTrack.enabled = !videoTrack.enabled;
-    setCamOn(videoTrack.enabled);
+    const videoTrack = localStream.current?.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.enabled = !videoTrack.enabled;
+      setCamOn(videoTrack.enabled);
+    }
   };
 
+  // 🚪 Leave Meeting
   const leaveMeeting = () => {
     peerConnection.current?.close();
-    localStream.current?.getTracks().forEach(track => track.stop());
+    localStream.current?.getTracks()?.forEach(track => track.stop());
     navigate("/dashboard");
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white p-4">
-      <div className="grid md:grid-cols-2 gap-6 mb-6">
-        <div className="text-center">
-          <h2 className="text-lg font-semibold mb-2">👤 You</h2>
-          <video ref={localVideoRef} autoPlay playsInline muted className="w-80 h-60 bg-gray-800 rounded" />
+    <div className="min-h-screen bg-[#f5f0e6] flex flex-col items-center justify-center px-4 py-10 text-[#3e2723]">
+      <h1 className="text-3xl font-bold mb-6">
+        ☕ Mocca Meet Room: <span className="font-mono text-[#6f4e37]">{roomId}</span>
+      </h1>
+
+      <div className="grid md:grid-cols-2 gap-8 mb-10">
+        <div className="backdrop-blur bg-white/40 border border-[#d4a373] shadow-xl rounded-xl p-4">
+          <h2 className="text-lg font-semibold mb-2 text-center">👤 You</h2>
+          <video
+            ref={localVideoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-80 h-60 rounded-xl bg-[#ccc] shadow-md"
+          />
         </div>
-        <div className="text-center">
-          <h2 className="text-lg font-semibold mb-2">👥 Guest</h2>
-          <video ref={remoteVideoRef} autoPlay playsInline className="w-80 h-60 bg-gray-800 rounded" />
+        <div className="backdrop-blur bg-white/40 border border-[#6f4e37] shadow-xl rounded-xl p-4">
+          <h2 className="text-lg font-semibold mb-2 text-center">👥 Guest</h2>
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            className="w-80 h-60 rounded-xl bg-[#ccc] shadow-md"
+          />
         </div>
       </div>
 
-      <div className="flex gap-4">
-        <button onClick={toggleMic} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">
+      <div className="flex flex-wrap justify-center gap-4">
+        <button
+          onClick={toggleMic}
+          className="px-6 py-2 bg-[#6f4e37] hover:bg-[#5a3d2b] text-white rounded-lg shadow transition"
+        >
           {micOn ? "🎤 Mute Mic" : "🔇 Unmute Mic"}
         </button>
-        <button onClick={toggleCam} className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded">
+        <button
+          onClick={toggleCam}
+          className="px-6 py-2 bg-[#a9745d] hover:bg-[#8a5a46] text-white rounded-lg shadow transition"
+        >
           {camOn ? "🎥 Stop Cam" : "📷 Start Cam"}
         </button>
-        <button onClick={leaveMeeting} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded">
+        <button
+          onClick={leaveMeeting}
+          className="px-6 py-2 bg-[#b91c1c] hover:bg-[#991b1b] text-white rounded-lg shadow transition"
+        >
           🚪 Leave
         </button>
       </div>

@@ -1,7 +1,54 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
 
-.input {
-  @apply w-full px-3 py-2 mb-3 border rounded outline-none focus:ring-2 focus:ring-blue-300;
+@layer components {
+  .input {
+    @apply w-full px-4 py-3 mb-4 border-2 border-amber-400 rounded-xl outline-none 
+           focus:ring-2 focus:ring-amber-600 focus:border-amber-600 
+           bg-white bg-opacity-60 backdrop-blur-sm placeholder-amber-700 text-amber-900
+           transition-all duration-200;
+  }
+
+  .btn-primary {
+    @apply px-6 py-3 bg-gradient-to-r from-amber-800 to-amber-700 
+           hover:from-amber-900 hover:to-amber-800 
+           text-white font-semibold rounded-xl shadow-lg 
+           transition-all duration-200 transform hover:scale-105;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 bg-gradient-to-r from-amber-600 to-amber-500 
+           hover:from-amber-700 hover:to-amber-600 
+           text-white font-semibold rounded-xl shadow-lg 
+           transition-all duration-200 transform hover:scale-105;
+  }
+
+  .card {
+    @apply backdrop-blur-md bg-white bg-opacity-40 border-2 border-amber-400 
+           shadow-xl rounded-2xl p-8;
+  }
+
+  .heading {
+    @apply text-3xl font-bold text-amber-900 mb-6 text-center;
+  }
+
+  .glass-bg {
+    @apply relative min-h-screen bg-gradient-to-br from-amber-100 via-amber-50 to-orange-100 
+           flex items-center justify-center overflow-hidden;
+  }
+}
+
+/* Additional utility classes */
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .5;
+  }
 }
